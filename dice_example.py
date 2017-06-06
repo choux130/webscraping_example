@@ -108,4 +108,4 @@ job_df_dice = job_df_dice.drop_duplicates(['job_link'], keep='first')
 print(job_df_dice.shape)
 
 # save the dataframe as a csv file
-job_df_dice.to_csv( '/Users/chou/Desktop/'+ 'job_monster.csv')
+job_df_dice.to_csv( '/Users/chou/Desktop/'+ 'job_dice.csv')
