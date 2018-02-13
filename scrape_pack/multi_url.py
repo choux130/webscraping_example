@@ -1,154 +1,19 @@
-########################################################
-#################### IMPORT LIBRARY ####################
-########################################################
+############################
+##### Import Libraries #####
+############################
 import bs4
 import numpy
 import pandas
 import re
 import requests
-import datetime
 import stop_words
-
-###################################################
-#################### ARGUMENTS ####################
-###################################################
-input_job = "Data Scientist"
-input_quote = False # add quotation marks("") to your input_job
-input_city = "Durham" # leave empty if input_city is not specified
-input_state = "NC"
-sign = "+"
-BASE_URL_dice = 'https://www.dice.com'
-
-#####################################################
-##### Function for Transform searching keywords #####
-#####################################################
-# The default "quote = False"
-def transform(input,sign, quote = False):
-    syntax = input.replace(" ", sign)
-    if quote == True:
-        syntax = ''.join(['"', syntax, '"'])
-    return(syntax)
-
-######################################
-########## Generate the URL ##########
-######################################
-if not input_city: # if (input_city is "")
-    url_dice_list = [ BASE_URL_dice, '/jobs?q=', transform(input_job, sign , input_quote),
-                        '+&l=', input_state ]
-    url_dice = ''.join(url_dice_list)
-else: # input_city is not ""
-    url_dice_list = [ BASE_URL_dice, '/jobs?q=', transform(input_job, sign , input_quote),
-                    '&l=', transform(input_city, sign), '%2C+', input_state ]
-    url_dice = ''.join(url_dice_list)
-print(url_dice)
-
-# get the HTML code from the URL
-rawcode_dice = requests.get(url_dice)
-# Choose "lxml" as parser
-soup_dice = bs4.BeautifulSoup(rawcode_dice.text, "lxml")
-
-# total number of results
-num_total_dice = soup_dice.find(id = 'posiCountMobileId').contents[0]
-num_total_dice = re.sub("[^0-9]","", num_total_dice) # remove non-numeric characters in the string
-num_total_dice = int(num_total_dice) # transform from string to integer
-print(num_total_dice)
-
-# total number of pages
-num_pages_dice = int(numpy.ceil(num_total_dice/30.0))
-print(num_pages_dice)
-
-# create an empty dataframe
-job_df_dice = pandas.DataFrame()
-# the date for today
-now = datetime.datetime.now()
-now_str = now.strftime("%m/%d/%Y")
-now_str_name=now.strftime('%m%d%Y')
-
-########################################
-##### Loop for all the total pages #####
-########################################
-for i in range(num_pages_dice+1):
-    # generate the URL
-    if not input_city: # if (input_city is "")
-        url_list = [ BASE_URL_dice, '/jobs/q-', transform(input_job, sign , input_quote),
-                        '-l-', input_state, '-startPage-', str(i),'-jobs']
-        url = ''.join(url_list)
-    else: # input_city is not ""
-        url_list = [ BASE_URL_dice, '/jobs/q-', transform(input_job, sign , input_quote),
-                        '-l-', transform(input_city, sign), '%2C_',
-                        input_state, '-startPage-', str(i),'-jobs']
-        url = ''.join(url_list)
-    print(url)
-
-    # get the HTML code from the URL
-    rawcode = requests.get(url)
-    soup = bs4.BeautifulSoup(rawcode.text, "lxml")
-
-    # pick out all the "div" with "class="job-row"
-    divs = soup.findAll("div")
-    job_divs = [jp for jp in divs if not jp.get('class') is None
-                    and 'complete-serp-result-div' in jp.get('class')]
-
-    # loop for each div chunk
-    for job in job_divs:
-        try:
-            # job id
-            id = job.find('input', {'type':'hidden'}).attrs['id']
-            # job link related to job id
-            link = job.find('ul', {'class': 'list-inline'}).find('li').find('h3').find('a').attrs['href']
-            # job title
-            title = job.find('ul', {'class': 'list-inline'}).find('li').find(
-                                'h3').find('a').attrs['title']
-            # job company
-            company = job.find('ul', {'class': 'list-inline details row'}).find(
-                    'li', {'class':'employer col-sm-3 col-xs-12 col-md-2 col-lg-3 text-ellipsis'}).find(
-                    'span', {'class':'hidden-xs'}).find('a').text.strip()
-            # job location
-            location = job.find('ul', {'class': 'list-inline details row'}).find(
-                    'li', {'class':'location col-sm-3 col-xs-12 col-md-2 col-lg-3 margin-top-3 text-ellipsis'}).find(
-                    'span',{'itemprop':'address'}).find('span',{'class':'jobLoc'}).text.strip()
-        except:
-            continue
-
-        job_df_dice = job_df_dice.append({'job_title': title,
-                                'job_id': id,
-                                'job_company': company,
-                                'date': now_str,
-                                'from':'Dice',
-                                'job_location':location,
-                                'job_link':link},ignore_index=True)
-cols=['from','date','job_id','job_title','job_company','job_location','job_link']
-job_df_dice=job_df_dice[cols]
-print(job_df_dice.shape)
-
-# delete the duplicated jobs using job link
-job_df_dice = job_df_dice.drop_duplicates(['job_link'], keep='first')
-
-# print the dimenstion of the dataframe
-print(job_df_dice.shape)
-
-# save the dataframe as a csv file
-path = '/Users/chou/Google Drive/websites/github/webscraping_example/output/'+'job_dice_' + now_str_name + '.csv'
-job_df_dice.to_csv(path)
-# job_df_dice.to_csv( '/Users/chou/Desktop/'+ 'job_dice.csv')
 
 ############################################################################
 ##### Define the terms that I am interested and would like to pick out #####
 ############################################################################
-# import library
-import bs4
-import numpy
-import pandas
-import re
-import requests
-import stop_words
-
 # define the stop_words for future use
 stop_words = stop_words.get_stop_words('english') # list out all the English stop word
 # print(stop_words)
-
-# read the csv file
-job_df_dice = pandas.DataFrame.from_csv(path)
 
 ##### Job types #####
 type = ['Full-Time', 'Full Time', 'Part-Time', 'Part Time', 'Contract', 'Contractor']
@@ -219,26 +84,18 @@ keywords_dic = list(keywords_map.set_index('lower').to_dict().values()).pop()# u
 ##############################################
 ##### For Loop for scraping each job URL #####
 ##############################################
-# empty list to store details for all the jobs
-list_type = []
-list_skill = []
-list_text = []
-list_edu = []
-list_major = []
-list_keywords = []
-
-for i in range(len(job_df_dice)):
+def scrape_job(link):
     # empty list to store details for each job
     required_type= []
     required_skills = []
     required_edu = []
     required_major = []
     required_keywords = []
+    required_text = []
 
     try:
-        # get the HTML code from the URL
-        job_page = requests.get(job_df_dice.iloc[i, 6])
-        # Choose "lxml" as parser
+        headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_4) AppleWebKit/603.1.30 (KHTML, like Gecko) Version/10.1 Safari/603.1.30'}
+        job_page = requests.get(link, headers=headers)
         soup = bs4.BeautifulSoup(job_page.text, "lxml")
 
         # drop the chunks of 'script','style','head','title','[document]'
@@ -267,8 +124,6 @@ for i in range(len(job_df_dice)):
             result = re.search(r'(?:^|(?<=\s))' + typp + r'(?=\s|$)', string) # search the string in a string
             if result:
                 required_type.append(type_dic[typ])
-        list_type.append(required_type)
-
         # Skills
         for sk in skills_lower :
             if any(x in sk for x in ['+', '#', '.']):
@@ -278,7 +133,6 @@ for i in range(len(job_df_dice)):
             result = re.search(r'(?:^|(?<=\s))' + skk + r'(?=\s|$)',string)
             if result:
                 required_skills.append(skills_dic[sk])
-        list_skill.append(required_skills)
 
         # Education
         for ed in edu_lower :
@@ -289,7 +143,6 @@ for i in range(len(job_df_dice)):
             result = re.search(r'(?:^|(?<=\s))' + edd + r'(?=\s|$)', string)
             if result:
                 required_edu.append(edu_dic[ed])
-        list_edu.append(required_edu)
 
         # Major
         for maj in major_lower :
@@ -300,7 +153,6 @@ for i in range(len(job_df_dice)):
             result = re.search(r'(?:^|(?<=\s))' + majj + r'(?=\s|$)', string)
             if result:
                 required_major.append(major_dic[maj])
-        list_major.append(required_major)
 
         # Key Words
         for key in keywords_lower :
@@ -311,34 +163,20 @@ for i in range(len(job_df_dice)):
             result = re.search(r'(?:^|(?<=\s))' + keyy + r'(?=\s|$)', string)
             if result:
                 required_keywords.append(keywords_dic[key])
-        list_keywords.append(required_keywords)
 
         # All text
         words = string.split(' ')
         job_text = set(words) - set(stop_words) # drop stop words
-        list_text.append(list(job_text))
+        required_text.append(list(job_text))
 
     except:
-        list_type.append('Forbidden')
-        list_skill.append('Forbidden')
-        list_edu.append('Forbidden')
-        list_major.append('Forbidden')
-        list_keywords.append('Forbidden')
-        list_text.append('Forbidden')
-    print(i)
+        required_type= 'Forbidden'
+        required_skills = 'Forbidden'
+        required_edu = 'Forbidden'
+        required_major = 'Forbidden'
+        required_keywords = 'Forbidden'
+        required_text = 'Forbidden'
 
-job_df_dice['job_type'] = list_type
-job_df_dice['job_skills'] = list_skill
-job_df_dice['job_edu'] = list_edu
-job_df_dice['job_major'] = list_major
-job_df_dice['job_keywords'] = list_keywords
-job_df_dice['job_text'] = list_text
-
-cols=['from','date','job_id','job_title','job_company','job_location','job_link','job_type',
-        'job_skills', 'job_edu', 'job_major', 'job_keywords','job_text']
-job_df_dice = job_df_dice[cols]
-
-# print the dimenstion of the dataframe
-print(job_df_dice.shape)
-
-job_df_dice.to_csv(path)
+    all_job ={'type':required_type, 'skills':required_skills, 'edu':required_edu,
+                'major':required_major, 'keywords':required_keywords, 'text':required_text}
+    return(all_job)
